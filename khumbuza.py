@@ -48,8 +48,6 @@ def cli():
 @click.option('--remind', type=int, help='Advance notice days')
 def add(title, due, description, weekly, monthly, yearly, remind):
     """Add a new task"""
-
-
     # Parse due date if provided
     due_date = None
     if due:
@@ -98,6 +96,49 @@ def add(title, due, description, weekly, monthly, yearly, remind):
     click.echo(f"Added task #{task_id}: '{title}'{due_str}")
 
 @cli.command()
+@click.argument('task_id', type=int)
+@click.option('--deleted', is_flag=True, help='Show the info even if the task was deleted')
+def info(task_id, deleted):
+    """Show information about a task"""
+    conn = get_db_connection()
+
+    result = conn.execute('''
+        SELECT id, title, description, due_date, completed, recurrence_type, 
+               recurrence_interval, advance_notice_days, created_date, completed_date, deleted_date
+        FROM task
+        WHERE id = ?
+    ''', (task_id,)).fetchone()
+
+    if not result:
+        click.echo(f"Task #{task_id} not found")
+        conn.close()
+        return
+
+    id, title, description, due_date, completed, recurrence_type, recurrence_interval, advance_notice_days, created_date, completed_date, deleted_date = result
+
+    if not deleted and deleted_date:
+        click.echo(f"Task #{task_id} was deleted")
+        conn.close()
+        return
+
+    # Output to match Task Warrior
+    click.echo("Name                 Value")
+    click.echo("-------------------- --------------------------------")
+    click.echo(f"ID                  {id}"),
+    click.echo(f"Title               {title}"),
+    click.echo(f"Description         {description}"),
+    click.echo(f"Due date            {due_date}"),
+    click.echo(f"Completed           {completed}"),
+    click.echo(f"Recurrence type     {result[5]}"),
+    click.echo(f"Recurrence interval {result[6]}"),
+    click.echo(f"Advance notice days {result[7]}"),
+    click.echo(f"Created date        {created_date}"),
+    click.echo(f"Completed date      {completed_date}")
+
+    if deleted:
+        click.echo(f"Deleted date        {deleted_date}")
+
+@cli.command()
 @click.option('--days', default=30, help='Show tasks due in next N days')
 @click.option('--all', 'show_all', is_flag=True, help='Show all incomplete tasks')
 def list(days, show_all):
@@ -131,19 +172,22 @@ def list(days, show_all):
         click.echo(f"No tasks due in the {period}.")
         return
     
-    period = "All incomplete tasks" if show_all else f"Tasks due in next {days} days"
-    click.echo(f"\n{period}:")
-    click.echo("-" * 50)
-    
+    # Output to match Task Warrior
+    click.echo("ID   Due         Title & Description")
+    click.echo("---  ----------  --------------------------------")
+
     for task_id, title, due_date, description in results:
-        due_str = f" (due: {due_date})" if due_date else ""
-        click.echo(f"#{task_id}: {title}{due_str}")
-        if description:
-            click.echo(f"    {description}")
+        desc_str = '' 
+        due_str = due_date or ''
+        if description: desc_str = '~ '+description
+        click.echo(f"{task_id:<4} {due_str:<11} {title} {desc_str} ")
+
+    num_tasks = len(results)
+    click.echo(f"\n{num_tasks} tasks")
 
 @cli.command()
 @click.argument('task_id', type=int)
-def complete(task_id):
+def done(task_id):
     """Mark a task as complete"""
     conn = get_db_connection()
     
@@ -182,8 +226,8 @@ def complete(task_id):
 @cli.command()
 @click.argument('task_id', type=int)
 @click.option('--force', is_flag=True, help='Force deletion on task not completed') 
-def remove(task_id, force):
-    """Remove a task completely"""
+def delete (task_id, force):
+    """Delete a task"""
     conn = get_db_connection()
     
     # Check if task exists
@@ -199,10 +243,10 @@ def remove(task_id, force):
         conn.close()
         return
     
-    title, is_completed = result
+    title, completed = result
 
     # Don't delete tasks that are not completed
-    if not is_completed and not force:
+    if not completed and not force:
         click.echo(f"Task #{task_id} is not completed.")
         click.echo(f"Mark as complete or use --force")
         return
@@ -217,7 +261,7 @@ def remove(task_id, force):
     conn.commit()
     conn.close()
     
-    click.echo(f"Removed task #{task_id}: '{title}'")
+    click.echo(f"Deleted task #{task_id}: '{title}'")
 
 if __name__ == '__main__':
     cli()
