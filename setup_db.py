@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 
 # Configuration - must match khumbuza.py
-DB_FILE = Path('/mnt/ssd/Applications/khumbuza/schedule.db')
+DB_FILE = Path('/mnt/ssd/Applications/khumbuza/tasks.db')
 
 def setup_database():
     """Create the database and tables"""
@@ -23,7 +23,7 @@ def setup_database():
 
     # Table: task
     conn.execute('''
-        CREATE TABLE tasks (
+        CREATE TABLE task (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             description TEXT,
@@ -33,7 +33,8 @@ def setup_database():
             recurrence_interval INTEGER DEFAULT 1,
             advance_notice_days INTEGER DEFAULT 0,
             created_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            completed_date DATETIME
+            completed_date DATETIME,
+            deleted_date DATETIME
         );    
         ''')
 
